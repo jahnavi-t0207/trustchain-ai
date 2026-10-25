@@ -15,9 +15,12 @@ def audit_decision(case: dict) -> dict:
         reason = "Conflicting evidence or missing information needs review."
 
     else:
-        decision = "APPROVE"
-        confidence = 0.85
-        reason = "Evidence was provided with no reported conflicts."
+        decision = "REVIEW"
+        confidence = 0.40
+        reason = (
+        "Evidence was submitted, but its validity and "
+        "sufficiency have not been verified."
+        )
 
     return {
         "decision": decision,
@@ -27,7 +30,7 @@ def audit_decision(case: dict) -> dict:
         "conflicting_evidence": conflicts,
         "reason": reason,
         "warning": (
-            "This is a demonstration rule-based result, "
-            "not a validated AI prediction."
-        )
+            "Demonstration rule-based result. "
+            "Confidence values are illustrative, not validated probabilities."
+         )
     }

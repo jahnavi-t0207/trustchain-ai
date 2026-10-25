@@ -8,3 +8,8 @@ dist/
 .env
 .env.*
 !.env.example
+# Local audit database
+backend/trustchain.db
+backend/trustchain.db-journal
+backend/trustchain.db-wal
+backend/trustchain.db-shm
