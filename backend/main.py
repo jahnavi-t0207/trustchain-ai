@@ -2,7 +2,7 @@
 import json
 
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from decision_engine import audit_decision
 from database import get_connection, initialize_database
@@ -11,9 +11,22 @@ app = FastAPI(title="TrustChain AI")
 
 
 class AuditRequest(BaseModel):
-    evidence: list[str] = Field(default_factory=list)
-    missing_info: list[str] = Field(default_factory=list)
-    conflicts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list, max_length=50)
+    missing_info: list[str] = Field(default_factory=list, max_length=50)
+    conflicts: list[str] = Field(default_factory=list, max_length=50)
+
+    @field_validator("evidence", "missing_info", "conflicts")
+    @classmethod
+    def validate_items(cls, items: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in items]
+
+        if any(not item for item in cleaned):
+            raise ValueError("Items cannot be empty.")
+
+        if any(len(item) > 2000 for item in cleaned):
+            raise ValueError("Each item must be 2000 characters or fewer.")
+
+        return cleaned
 
 
 @app.on_event("startup")
