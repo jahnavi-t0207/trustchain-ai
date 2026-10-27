@@ -62,3 +62,39 @@ def test_no_evidence_with_conflicts():
     assert result["decision"] == "REVIEW"
     assert result["reason"] == "No supporting evidence was provided."
     assert result["conflicting_evidence"] == ["Date mismatch"]
+
+def test_conflicts_get_specific_reason():
+    result = audit_decision({
+        "evidence": ["Invoice provided"],
+        "missing_info": [],
+        "conflicts": ["Date mismatch"],
+    })
+
+    assert result["decision"] == "REVIEW"
+    assert result["reason"] == (
+        "Conflicting evidence needs investigation."
+    )
+
+
+def test_missing_info_gets_specific_reason():
+    result = audit_decision({
+        "evidence": ["Invoice provided"],
+        "missing_info": ["Proof of delivery"],
+        "conflicts": [],
+    })
+
+    assert result["decision"] == "REVIEW"
+    assert result["reason"] == "Required information is missing."
+
+
+def test_both_issues_get_combined_reason():
+    result = audit_decision({
+        "evidence": ["Invoice provided"],
+        "missing_info": ["Proof of delivery"],
+        "conflicts": ["Date mismatch"],
+    })
+
+    assert result["decision"] == "REVIEW"
+    assert result["reason"] == (
+        "Conflicting evidence and missing information need review."
+    )
