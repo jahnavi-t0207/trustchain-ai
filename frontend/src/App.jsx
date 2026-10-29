@@ -14,17 +14,18 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const toList = (value) =>
+    value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
   async function runAudit(event) {
     event.preventDefault();
+
     setLoading(true);
     setError("");
     setResult(null);
-
-    const toList = (value) =>
-      value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
 
     try {
       const response = await fetch(`${API_URL}/audit`, {
@@ -40,34 +41,86 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned error ${response.status}`);
+        let message = `Server returned error ${response.status}`;
+
+        try {
+          const data = await response.json();
+
+          if (Array.isArray(data.detail)) {
+            message = data.detail
+              .map((item) => item.msg)
+              .join(". ");
+          } else if (typeof data.detail === "string") {
+            message = data.detail;
+          }
+        } catch {
+          // Keep the default message if the response isn't JSON.
+        }
+
+        throw new Error(message);
       }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-  console.error("Audit error:", err);
-  setError(err.message || "Something went wrong.");
-} finally {
+      console.error("Audit error:", err);
+
+      if (err instanceof TypeError) {
+        setError(
+          "Could not connect to the backend. Check that the API is running."
+        );
+      } else {
+        setError(err.message || "Something went wrong.");
+      }
+    } finally {
       setLoading(false);
     }
   }
+
+  function renderList(items, emptyMessage) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return <p>{emptyMessage}</p>;
+    }
+
+    return (
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  const confidence = Number(result?.confidence);
+  const validConfidence = Number.isFinite(confidence)
+    ? Math.max(0, Math.min(100, confidence * 100))
+    : null;
 
   return (
     <main className="app-shell">
       <nav className="topbar">
         <div className="brand">
           <span className="brand-mark">T</span>
-          <span>TrustChain <b>AI</b></span>
+          <span>
+            TrustChain <b>AI</b>
+          </span>
         </div>
+
         <span className="status">
-          <span className="status-dot" /> DEMO ENVIRONMENT
+          <span className="status-dot" />
+          DEMO ENVIRONMENT
         </span>
       </nav>
 
       <section className="hero">
         <p className="eyebrow">EVIDENCE-BASED DECISION SUPPORT</p>
-        <h1>Trust decisions.<br /><span>Made transparent.</span></h1>
+
+        <h1>
+          Trust decisions.
+          <br />
+          <span>Made transparent.</span>
+        </h1>
+
         <p className="hero-copy">
           Review evidence, identify missing information, and surface
           conflicting details with a transparent, explainable audit.
@@ -81,6 +134,7 @@ function App() {
               <p className="eyebrow">01 / INPUT</p>
               <h2>Evidence audit</h2>
             </div>
+
             <span className="step-number">01</span>
           </div>
 
@@ -91,6 +145,8 @@ function App() {
             onChange={(event) => setEvidence(event.target.value)}
             placeholder={"Identity verified\nAddress verified"}
             rows={4}
+            maxLength={100000}
+            disabled={loading}
           />
 
           <label htmlFor="missing">Missing information</label>
@@ -100,6 +156,8 @@ function App() {
             onChange={(event) => setMissingInfo(event.target.value)}
             placeholder="Enter one item per line"
             rows={3}
+            maxLength={100000}
+            disabled={loading}
           />
 
           <label htmlFor="conflicts">Conflicting evidence</label>
@@ -109,25 +167,37 @@ function App() {
             onChange={(event) => setConflicts(event.target.value)}
             placeholder="Example: Address details do not match"
             rows={3}
+            maxLength={100000}
+            disabled={loading}
           />
 
           <p className="field-hint">
-            Enter each item on a separate line.
+            Enter each item on a separate line. Maximum 50 items per
+            field, with up to 2,000 characters per item.
           </p>
 
-          <button className="audit-button" type="submit" disabled={loading}>
+          <button
+            className="audit-button"
+            type="submit"
+            disabled={loading}
+          >
             {loading ? "Analyzing evidence..." : "Run evidence audit →"}
           </button>
 
-          {error && <p className="error-message">{error}</p>}
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
         </form>
 
-        <section className="panel result-panel">
+        <section className="panel result-panel" aria-live="polite">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">02 / OUTPUT</p>
               <h2>Audit result</h2>
             </div>
+
             <span className="step-number">02</span>
           </div>
 
@@ -142,33 +212,60 @@ function App() {
             </div>
           )}
 
-          {loading && <p className="field-hint">Waiting for the backend...</p>}
+          {loading && (
+            <p className="field-hint" role="status">
+              Waiting for the backend...
+            </p>
+          )}
 
           {result && (
             <div className="result-content">
               <p className="result-label">DECISION</p>
-              <h3 className={`decision decision-${String(result.decision).toLowerCase()}`}>
+
+              <h3
+                className={`decision decision-${String(
+                  result.decision
+                ).toLowerCase()}`}
+              >
                 {result.decision}
               </h3>
 
+              <p className="field-hint">
+                This is a rule-based demonstration result. Human review
+                is required.
+              </p>
+
               <p className="result-label">REPORTED CONFIDENCE</p>
+
               <div className="confidence-row">
                 <strong>
-                  {Math.round(Number(result.confidence) * 100)}%
+                  {validConfidence === null
+                    ? "N/A"
+                    : `${Math.round(validConfidence)}%`}
                 </strong>
-                <span>Rule-based score</span>
+
+                <span>Illustrative score only</span>
               </div>
-              <div className="confidence-track">
+
+              <div
+                className="confidence-track"
+                role="progressbar"
+                aria-label="Illustrative confidence score"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={validConfidence ?? 0}
+              >
                 <div
                   className="confidence-fill"
                   style={{
-                    width: `${Math.max(
-                      0,
-                      Math.min(100, Number(result.confidence) * 100)
-                    )}%`,
+                    width: `${validConfidence ?? 0}%`,
                   }}
                 />
               </div>
+
+              <p className="field-hint">
+                This score is not a validated probability of correctness.
+              </p>
 
               <div className="detail-block">
                 <h4>Reason</h4>
@@ -177,40 +274,22 @@ function App() {
 
               <div className="detail-block">
                 <h4>Evidence used</h4>
-                {result.evidence_used?.length ? (
-                  <ul>
-                    {result.evidence_used.map((item, index) => (
-                      <li key={`${item}-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No evidence listed.</p>
-                )}
+                {renderList(result.evidence_used, "No evidence listed.")}
               </div>
 
               <div className="detail-block">
                 <h4>Missing information</h4>
-                {result.missing_information?.length ? (
-                  <ul>
-                    {result.missing_information.map((item, index) => (
-                      <li key={`${item}-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>None reported.</p>
+                {renderList(
+                  result.missing_information,
+                  "None reported."
                 )}
               </div>
 
               <div className="detail-block">
                 <h4>Conflicting evidence</h4>
-                {result.conflicting_evidence?.length ? (
-                  <ul>
-                    {result.conflicting_evidence.map((item, index) => (
-                      <li key={`${item}-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>None reported.</p>
+                {renderList(
+                  result.conflicting_evidence,
+                  "None reported."
                 )}
               </div>
 
@@ -223,9 +302,7 @@ function App() {
         </section>
       </section>
 
-      <footer>
-        TRUSTCHAIN AI · TRANSPARENT BY DESIGN
-      </footer>
+      <footer>TRUSTCHAIN AI · TRANSPARENT BY DESIGN</footer>
     </main>
   );
 }
